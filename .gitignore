@@ -1,3 +1,6 @@
+/.idea
+/rel/log
+/rel/redisloop
 .rebar3
 _*
 .eunit
@@ -17,3 +20,8 @@ _plugins
 _tdeps
 logs
 _build
+deps
+redis-server
+rebar.lock
+redisloop.iml
+redis_config.dat
