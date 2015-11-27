@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, take_owner/2, create/2]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -24,11 +24,18 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {cluster_conn}).
+-record(state, {cluster_conn, pre_owner, cur_owner}).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+create(Slot, Replica) ->
+    NodeName = list_to_atom("node_" ++ integer_to_list(Slot) ++ "_" ++ integer_to_list(Replica)),
+    lager:info("create ~p~n", [NodeName]),
+    gen_server:start_link({local, NodeName}, ?SERVER, [Slot, Replica], []).
+
+take_owner(Slot, Replica) ->
+    gen_server:call(?SERVER, {take_owner, Slot, Replica}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -59,9 +66,9 @@ start_link() ->
 -spec(init(Args :: term()) ->
     {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term()} | ignore).
-init([]) ->
+init([Slot, Replica]) ->
     {ok, Conn} = cluster_impl_zk:connect([]),
-    cluster_impl_zk:watch_cluster(Conn),
+    cluster_impl_zk:watch_cluster(Conn, Slot, Replica, self()),
     {ok, #state{cluster_conn = Conn}}.
 
 %%--------------------------------------------------------------------
@@ -80,9 +87,11 @@ init([]) ->
     {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
     {stop, Reason :: term(), NewState :: #state{}}).
 handle_call({take_owner, Slot, Replica}, _From, #state{cluster_conn = ClusterConn} = State) ->
-    cluster_impl_zk:take_owner(ClusterConn, {Slot, Replica}),
-    {reply, ok, State};
+    lager:debug("take_owner ~p ~p~n", [Slot, Replica]),
+    Ret = cluster_impl_zk:take_owner(ClusterConn, {Slot, Replica}),
+    {reply, Ret, State};
 handle_call(_Request, _From, State) ->
+    lager:error("Unhandled req ~p~n", [_Request]),
     {reply, ok, State}.
 
 %%--------------------------------------------------------------------
@@ -97,6 +106,12 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
 handle_cast(_Request, State) ->
+    lager:debug("handle_cast ~p~n", [_Request]),
+    gen_server:cast(cluster_manager, _Request),
+    case _Request of
+        {node_data_changed, Path, Data} ->
+            lager:info("~p owned by ~p~n", [Path, binary_to_term(Data)])
+    end,
     {noreply, State}.
 
 %%--------------------------------------------------------------------

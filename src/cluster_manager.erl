@@ -23,6 +23,8 @@
     code_change/3]).
 
 -define(SERVER, ?MODULE).
+-define(SLOTROUTE, slotroute).
+-define(SAVED_SLOTROUTE, saved_slotroute).
 
 -record(state, {}).
 
@@ -65,6 +67,15 @@ start_link() ->
     {ok, State :: #state{}} | {ok, State :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term()} | ignore).
 init([]) ->
+    %% key -> slot -> node
+    %% route table of slot -> node
+    ets:new(?SLOTROUTE, [set, named_table, public]),
+    ets:new(?SAVED_SLOTROUTE, [set, named_table, public]),
+
+    %% slot maintained by this node
+    ets:new(slotowned, [set, named_table]),
+
+    [ cluster_node:create(Slot, 0) || Slot <- lists:seq(0, 5, 1) ],
     {ok, #state{}}.
 
 %%--------------------------------------------------------------------
@@ -97,6 +108,12 @@ handle_call(_Request, _From, State) ->
     {noreply, NewState :: #state{}, timeout() | hibernate} |
     {stop, Reason :: term(), NewState :: #state{}}).
 handle_cast(_Request, State) ->
+    case _Request of
+        {node_data_changed, Slot, Replica, Data} ->
+            Owner = binary_to_term(Data),
+            ets:delete(?SLOTROUTE, {Slot, Replica}),
+            lager:info("~p owned by ~p~n", [Path, Owner])
+    end,
     {noreply, State}.
 
 %%--------------------------------------------------------------------

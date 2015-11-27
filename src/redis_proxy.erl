@@ -82,13 +82,6 @@ init([]) ->
     {state, C1, _, _, _, _, _, _} = RedisStat1,
     {state, C2, _, _, _, _, _, _} = RedisStat2,
 
-    %% key -> slot -> node
-    %% route table of slot -> node
-    ets:new(slotroute, [set, named_table, public]),
-
-    %% slot maintained by this node
-    ets:new(slotowned, [set, named_table]),
-
     load_route(),
     {ok, #state{c1 = C1, c2 = C2}}.
 
@@ -205,4 +198,5 @@ key_to_nodes(Key) ->
 
 -spec slot_to_nodes(Slot ::integer()) -> [].
 slot_to_nodes(Slot) ->
-    ets:lookup(route, Slot).
+    ok.
+%%    ets:lookup(route, Slot).
