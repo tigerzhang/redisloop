@@ -25,3 +25,4 @@ redis-server
 rebar.lock
 redisloop.iml
 redis_config.dat
+c_src/redis
